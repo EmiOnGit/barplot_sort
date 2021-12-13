@@ -4,28 +4,26 @@ mod helper;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::thread;
-use std::time::Duration;
 use druid::widget::{prelude::*, Label, Flex};
 use druid::{
-    AppLauncher, Color, LocalizedString, Rect, WindowDesc, ExtEventSink, WidgetExt,
+    AppLauncher, Color, LocalizedString, Rect, WindowDesc, WidgetExt,
 };
 
 use druid::{Data, Env, Lens, Widget};
 use helper::create_data;
-use sorter::Swap;
 
 const BAR_WIDTH: f64 = 40.;
 const WINDOW_TITLE: LocalizedString<IterData> = LocalizedString::new("Graphs");
 
 
 fn ui_builder() -> impl Widget<IterData> {
-    
     let label = Label::new(|data: &IterData, _env: &_| format!("iterations: {}",data.iteration))
     .padding(5.0)
     .center();
     Flex::column().with_child(label).with_child(BoxPlot::default())
 
 }
+
 #[derive(Clone, Lens)]
 struct IterData {
     name: String,
@@ -36,7 +34,6 @@ struct IterData {
 impl Data for IterData {
     fn same(&self, other: &Self) -> bool {
         self.iteration == other.iteration
-
     }
 }
 
@@ -59,35 +56,19 @@ fn main() {
         // .launch(initial_state)
         // .expect("Failed to launch application");
     let event_sink = launcher.get_external_handle();
-    let d = initial_state.status.borrow().clone();
-    thread::spawn(move || sort(event_sink,d));
+    let mut d = initial_state.status.borrow().clone();
+    thread::spawn(move || sorter::sort(&mut d).send_swaps(event_sink));
 
     launcher
         .launch(initial_state)
         .expect("launch failed");
 
 }
-fn sort(event_sink: ExtEventSink, mut data: Vec<f32>) {
-    let swaps = sorter::sort(&mut data);
-    for swap in swaps {
-        thread::sleep(Duration::from_secs_f32(0.2));
 
-        event_sink.add_idle_callback(move |data: &mut IterData| {
-            data.iteration = Box::new(data.iteration.as_ref() + 1);
-            if let Swap::Atomic((i1,i2)) = swap {
-                data.status.borrow_mut().swap(i1, i2);
-            }
-        });
-    }
-}
 struct BoxPlot{
     color: Color,
 }
-impl BoxPlot {
-    pub fn new(color: Color) -> BoxPlot {
-        BoxPlot {color}
-    }
-}
+
 impl Default for BoxPlot {
     fn default() -> BoxPlot {
         BoxPlot {color: Color::BLACK}
